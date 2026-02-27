@@ -44,6 +44,8 @@ class AdbManager:
         try:
             result = subprocess.run(['adb', 'devices'], capture_output=True, text=True, timeout=5,
                                      startupinfo=STARTUPINFO_C, creationflags=CREATIONFLAGS_C)
+            # 调试时可打印命令
+            # print(f"ADB result: {result}")
             if result.returncode != 0:
                 raise AdbError(f"adb devices failed: {result.stderr}")
             lines = result.stdout.strip().split('\n')[1:]
@@ -52,6 +54,7 @@ class AdbManager:
                 if line.strip() and '\tdevice' in line:
                     serial = line.split('\t')[0]
                     devices.append(serial)
+            print(f"ADB result: {devices}") if devices else None
             return devices
         except subprocess.TimeoutExpired:
             raise AdbError("adb devices timeout")
@@ -86,7 +89,7 @@ class AdbManager:
             raise AdbError("No device selected")
         cmd = ['adb', '-s', self.current_device] + args
         # 调试时可打印命令
-        # print(f"ADB: {' '.join(cmd)}")
+        print(f"ADB: {' '.join(cmd)}")
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                                     check=False, encoding='utf-8', errors='ignore',

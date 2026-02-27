@@ -20,6 +20,8 @@ def get_config_dir():
 CONFIG_DIR = get_config_dir()
 CONFIG_FILE = CONFIG_DIR / 'config.json'
 
+VERSION_NUMBER = "0.0.2" # 26-2
+
 class ConfigManager:
     def __init__(self):
         self.config_path = CONFIG_FILE
@@ -43,7 +45,7 @@ class ConfigManager:
     def save(self):
         """保存配置到文件"""
         CONFIG_DIR.mkdir(exist_ok=True)
-        data = {'version': '2.0', 
+        data = {'version': VERSION_NUMBER, 
                 'pipelines': self.pipelines}
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:

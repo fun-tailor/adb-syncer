@@ -12,7 +12,8 @@ test_dir/
 # 配置文件
 config.json
 LLM.md
-# run_gui.py
+
+# vs code
 workspace.code-workspace
 tempCodeRunnerFile.py
 
@@ -20,6 +21,6 @@ PROJECT_STRUCTURE.md
 
 # 打包文件
 adb_syncer.spec
-adb_syncer.exe
+*.exe
 build/
 dist/

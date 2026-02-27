@@ -32,6 +32,16 @@ ADB 同步器是一个基于 Python + PyQt6 的图形化工具，通过 ADB 连�
    - 其他选项按需设置（扩展名过滤、同步方向、同步天数等）。
 4. 点击卡片上的“同步”按钮开始同步。
 
+---
+
+#### 软件说明 (目前版本：0.0.2)
+
+- 新建 Pipeline 后，会在同目录下，生成 `config.json` 文件（用于保存配置）
+- 检测设备的间隔是 5s；自动同步(auto sync) 的冷却时间是 30分钟
+
+- 支持 多pipeline 自动同步（考虑到adb的稳定性，内部序列执行，耗时 depend on 文件数量）
+
+
 ## 🔌 插件开发（开发中）
 
 1. 在 `plugins` 文件夹中创建 `.py` 文件。
@@ -50,9 +60,15 @@ pyinstaller --onefile --noconsole --name adb_syncer --hidden-import PyQt6.sip ma
 ```
 
 
-### 下载
+### ADB 配置
 
-- 如需 ADB，请从 [Android 开发者网站](https://developer.android.com/studio/releases/platform-tools) 下载。
+#### 下载渠道
+
+- 开发者工具 发布页面 [Android developer](https://developer.android.com/studio/releases/platform-tools) 
+
+- cn 区域 发布页面 [Android developer](https://developer.android.google.cn/tools/releases/platform-tools)
+
+下载解压后，可以把 `adb.exe`，`AdbWinApi.dll`，`AdbWinUsbApi.dll` 这三个复制到 本软件同目录；或者 将整个工具包文件夹的路径，写入系统路径 PATH
 
 ---
 

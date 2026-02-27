@@ -76,30 +76,6 @@ class PipelineCardWidget(QFrame):
         # 简单显示原始路径，实际可动态解析
         return f"{self.pipeline['local']}  ↔  {self.pipeline['device']}"
 
-    # def update_status(self):
-    #     """根据当前设备状态和路径存在性更新圆点和同步按钮"""
-    #     if not self.adb.current_device or not self.adb.is_connected():
-    #         self.status_label.setStyleSheet("color: gray; font-size: 16px;")
-    #         self.sync_btn.setEnabled(False)
-    #         return
-
-    #     # 获取实际路径（可能被插件修改）
-    #     local_path, device_path = self._resolve_paths()
-    #     if not local_path or not device_path:
-    #         self.status_label.setStyleSheet("color: red; font-size: 16px;")
-    #         self.sync_btn.setEnabled(False)
-    #         return
-
-    #     local_exists = os.path.isdir(local_path)
-    #     device_exists = self.adb.file_exists(device_path)
-
-    #     if local_exists and device_exists:
-    #         self.status_label.setStyleSheet("color: green; font-size: 16px;")
-    #         self.sync_btn.setEnabled(True)
-    #     else:
-    #         self.status_label.setStyleSheet("color: red; font-size: 16px;")
-    #         self.sync_btn.setEnabled(False)
-
     def update_status(self, local_exists=None, device_exists=None):
         """根据路径存在性更新状态（如果未提供，则基于当前设备状态）"""
         if not self.adb.current_device or not self.adb.is_connected():
