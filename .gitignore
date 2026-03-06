@@ -10,6 +10,7 @@ tests/
 test_dir/
 
 # 配置文件
+/*.json
 config.json
 LLM.md
 

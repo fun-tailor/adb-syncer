@@ -16,6 +16,9 @@ from core.plugin_manager import PluginManager
 from utils.logger import QTextEditLogger
 from ui.pipeline_card import PipelineCardWidget
 from ui.pipeline_dialog import PipelineDialog
+from ui.tray_interface import TrayInterface
+
+from ui.system_tray import SystemTray
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,8 @@ class MainWindow(QMainWindow):
         # sync 任务 序列执行
         self.sync_queue = deque()          # 待执行的同步任务队列
         self._sync_running = False         # 当前是否有同步任务正在运行
+
+        self._force_exit = False             # 新增退出标志
 
         # 初始化核心模块
         self.adb = AdbManager()
@@ -58,6 +63,12 @@ class MainWindow(QMainWindow):
         self.last_auto_sync_time = {}
         self._check_workers = []  # 用于路径检查线程
 
+        # 托盘
+        self.tray:TrayInterface = SystemTray(self)
+        self.tray.show()
+        # 连接暂停信号，以便在自动同步时检查
+        self.tray.auto_sync_paused.connect(self.on_auto_sync_paused)
+
         # 启动定时器检测设备
         self.device_timer = QTimer()
         self.device_timer.timeout.connect(self.check_device)
@@ -69,7 +80,7 @@ class MainWindow(QMainWindow):
 
         # 存储所有正在运行的路径检查线程
         self.path_check_threads = {}
-
+        
     def setup_ui(self):
         # 中央部件
         central = QWidget()
@@ -156,6 +167,8 @@ class MainWindow(QMainWindow):
                     self.refresh_pipeline_status()   # 设备变化，刷新卡片状态
                     self.trigger_auto_sync()         # 触发自动同步
                 self.last_device_serial = new_serial
+
+                self.tray.update_connection_state(True)
             else:
                 # 之前有设备，现在无设备（断开连接）
                 if self.last_device_serial is not None:
@@ -164,6 +177,8 @@ class MainWindow(QMainWindow):
                     self.device_label.setStyleSheet("color: gray;")
                     self.refresh_pipeline_status()   # 设备断开，刷新卡片状态
                 self.last_device_serial = None
+
+                self.tray.update_connection_state(False)
         except AdbError as e:
             self.adb.current_device = None
             self.device_label.setText(f"设备: 错误 - {str(e)}")
@@ -172,9 +187,21 @@ class MainWindow(QMainWindow):
             if self.last_device_serial is not None:
                 self.refresh_pipeline_status()
             self.last_device_serial = None
-            
+
+            self.tray.update_connection_state(False)      # 更新托盘连接状态
+
+    def on_auto_sync_paused(self, paused):
+        if paused:
+            logger.info("自动同步已暂停 30 分钟")
+        else:
+            logger.info("自动同步已恢复")
+
     def trigger_auto_sync(self):
         """设备刚连接时，检查所有开启自动同步的 Pipeline 是否需要执行同步"""
+        if self.tray.is_auto_sync_paused():
+            logger.info("自动同步已暂停，跳过")
+            return
+
         now = time.time()
         for i in range(self.pipeline_list.count()):
             item = self.pipeline_list.item(i)
@@ -351,6 +378,13 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """程序关闭时清理线程"""
+
+        # if (not self._force_exit) and self.tray.isVisible():
+        if not self._force_exit:
+            self.hide()
+            event.ignore()
+            return
+
         self.device_timer.stop()
         # 如果正在执行同步，等待它结束（或强制终止）
         if self._sync_running and hasattr(self, 'sync_thread') and self.sync_thread.isRunning():
@@ -461,6 +495,8 @@ class MainWindow(QMainWindow):
             logger.warning(f"队列中的 pipeline 索引 {index} 的卡片已不存在，跳过")
             self._start_next_sync()
             return
+        
+        self.tray.update_sync_state(True)
 
         # 禁用该卡片的同步按钮，表示正在执行或排队（这里在启动时禁用）
         widget.set_sync_button_enabled(False)
@@ -517,8 +553,18 @@ class MainWindow(QMainWindow):
         logger.info(f"同步完成: 上传 {stats['upload']}, 下载 {stats['download']}, 跳过 {stats['skip']}, 错误 {stats['error']}")
         self.append_log('')
 
-        # 启动队列中的下一个任务
-        self._start_next_sync()
+        # self.tray.update_sync_state(False)
+        # # 启动队列中的下一个任务
+        # self._start_next_sync()
+
+        if not self.sync_queue:  # 队列为空，所有任务完成
+            self.tray.update_sync_state(False)
+            if self.config.get('show_sync_notification', False):
+                self.tray.show_message("同步完成", "所有同步任务已完成")
+        else:
+            # 还有任务，保持同步状态为 True（实际上可能已为 True）
+            self.tray.update_sync_state(True)
+            self._start_next_sync()
 
     def on_sync_error(self, index, error_msg):
         """同步失败"""
@@ -534,8 +580,17 @@ class MainWindow(QMainWindow):
 
         self.sync_progress.setVisible(False)
         logger.error(f"同步失败: {error_msg}")
-        # 启动队列中的下一个任务
-        self._start_next_sync()
+
+        # self.tray.update_sync_state(False)
+        # # 启动队列中的下一个任务
+        # self._start_next_sync()
+
+        if not self.sync_queue:
+            self.tray.update_sync_state(False)
+            # 可选的错误通知，根据需求决定
+        else:
+            self.tray.update_sync_state(True)
+            self._start_next_sync()
 
 class SyncThread(QThread):
     finished = pyqtSignal(int, dict)
@@ -551,6 +606,19 @@ class SyncThread(QThread):
     def run(self):
         try:
             stats = self.engine.sync(self.pipeline, progress_callback=self.stats_updated.emit)
+            
+            self._scan_broadcast()
             self.finished.emit(self.index, stats)
         except Exception as e:
             self.error.emit(self.index, str(e))
+
+    def _scan_broadcast(self):
+        """同步完成后发送媒体扫描广播,系统及时更新 推送的 mime type"""
+        # engine.sync 已经做排除
+        if self.pipeline.get('direction', '') !=  "device_to_local": #包括同步 和 仅push
+            try:
+                self.engine.adb.scan_file(self.pipeline.get('device', ''))
+                # logger.info(f"已发送媒体扫描广播: {remote_path}")
+            except Exception as e:
+                # logger.error(f"发送媒体扫描广播失败: {e}")
+                pass

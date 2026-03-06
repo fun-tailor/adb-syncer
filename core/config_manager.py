@@ -20,12 +20,13 @@ def get_config_dir():
 CONFIG_DIR = get_config_dir()
 CONFIG_FILE = CONFIG_DIR / 'config.json'
 
-VERSION_NUMBER = "0.0.2" # 26-2
+VERSION_NUMBER = "0.0.3" # 26-3
 
 class ConfigManager:
     def __init__(self):
         self.config_path = CONFIG_FILE
         self.pipelines = []
+        self.settings = {}  # 新增全局设置
         self.load()
 
     def load(self):
@@ -34,24 +35,34 @@ class ConfigManager:
             try:
                 with open(self.config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    pipelines = data.get('pipelines', [])
-                    self.pipelines = pipelines
+                    self.pipelines = data.get('pipelines', [])
+                    self.settings = data.get('settings', {})
             except Exception as e:
                 print(f"加载配置失败: {e}")
                 self.pipelines = []
+                self.settings = {}
         else:
             self.pipelines = []
+            self.settings = {}
 
     def save(self):
         """保存配置到文件"""
         CONFIG_DIR.mkdir(exist_ok=True)
         data = {'version': VERSION_NUMBER, 
+                'settings': self.settings,
                 'pipelines': self.pipelines}
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"保存配置失败: {e}")
+
+    def get(self, key, default=None):
+        return self.settings.get(key, default)
+
+    def set(self, key, value):
+        self.settings[key] = value
+        self.save()
 
     def add_pipeline(self, pipeline: Dict[str, Any]):
         self.pipelines.append(pipeline)

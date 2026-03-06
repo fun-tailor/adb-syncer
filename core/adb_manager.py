@@ -54,7 +54,7 @@ class AdbManager:
                 if line.strip() and '\tdevice' in line:
                     serial = line.split('\t')[0]
                     devices.append(serial)
-            print(f"ADB result: {devices}") if devices else None
+            # print(f"ADB result: {devices}") if devices else None
             return devices
         except subprocess.TimeoutExpired:
             raise AdbError("adb devices timeout")
@@ -89,7 +89,7 @@ class AdbManager:
             raise AdbError("No device selected")
         cmd = ['adb', '-s', self.current_device] + args
         # 调试时可打印命令
-        print(f"ADB: {' '.join(cmd)}")
+        # print(f"ADB: {' '.join(cmd)}")
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                                     check=False, encoding='utf-8', errors='ignore',
@@ -227,3 +227,32 @@ class AdbManager:
                     'mtime': mtime
                 }
         return None
+    
+    def scan_file(self, remote_path: str) -> bool:
+        """
+        发送媒体扫描广播，通知系统扫描指定文件或目录。
+        通过 adb shell am broadcast 实现。
+        :param remote_path: 设备上的绝对路径，如 /sdcard/资料/
+        :return: 广播是否成功发送
+        """
+        # MEDIA_SCANNER_SCAN_FILE 在 sdk29 deprecated（目前还可用）
+
+        # 确保路径以 / 开头（虽然通常已经符合）
+        if not remote_path.startswith('/'):
+            remote_path = '/' + remote_path
+
+        # 构造 URI: file:///sdcard/资料/
+        uri = f"file://{remote_path}"
+
+        try:
+            # 使用 am broadcast 命令，-d 参数后跟 URI
+            cmd = ['shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', uri]
+            result = self._run_adb(cmd, timeout=10)
+            if result.returncode == 0:
+                return True
+            else:
+                # print(f"广播发送失败: {result.stderr}")
+                return False
+        except Exception as e:
+            # print(f"广播异常: {e}")
+            return False
